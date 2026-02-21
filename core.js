@@ -1,12 +1,13 @@
 let hls;
 
-const PLAYLIST_BASE_URL = "http://ded50.com/get.php";
 const BATCH_SIZE = 80;
+const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
 const video = document.getElementById("videoPlayer");
 const spinner = document.getElementById("spinner");
 const channelsContainer = document.getElementById("channelsContainer");
 const loginForm = document.getElementById("loginForm");
+const serverUrlInput = document.getElementById("serverUrl");
 const usernameInput = document.getElementById("username");
 const passwordInput = document.getElementById("password");
 const statusMessage = document.getElementById("statusMessage");
@@ -34,7 +35,19 @@ function setStatus(message, isError = false) {
   statusMessage.classList.toggle("error", isError);
 }
 
-function buildPlaylistUrl(username, password) {
+function normalizeServerUrl(rawServerUrl) {
+  const trimmed = rawServerUrl.trim();
+  if (!trimmed) return "";
+
+  try {
+    const parsed = new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return "";
+  }
+}
+
+function buildPlaylistUrl(serverUrl, username, password) {
   const params = new URLSearchParams({
     username,
     password,
@@ -42,7 +55,7 @@ function buildPlaylistUrl(username, password) {
     output: "ts"
   });
 
-  return `${PLAYLIST_BASE_URL}?${params.toString()}`;
+  return `${serverUrl}/get.php?${params.toString()}`;
 }
 
 function parseAttributes(extinfLine) {
@@ -59,20 +72,14 @@ function parseAttributes(extinfLine) {
 
 function categoryFromGroup(groupTitle = "") {
   const normalizedGroup = groupTitle.toLowerCase();
-
   if (/movie|filme|film|vod/.test(normalizedGroup)) return "movies";
   if (/series|série|serie/.test(normalizedGroup)) return "series";
   return "channels";
 }
 
 function parseM3U(content) {
-  const lines = content.split(/\r?\n/);
-  const parsed = {
-    channels: [],
-    movies: [],
-    series: []
-  };
-
+  const lines = content.replace(/^\uFEFF/, "").split(/\r?\n/);
+  const parsed = { channels: [], movies: [], series: [] };
   let currentInfo = null;
 
   for (const rawLine of lines) {
@@ -82,14 +89,10 @@ function parseM3U(content) {
     if (line.startsWith("#EXTINF")) {
       const attributes = parseAttributes(line);
       const nameMatch = line.match(/,(.*)$/);
-      const title = nameMatch ? nameMatch[1].trim() : "Conteúdo sem título";
-      const group = attributes["group-title"] || "Sem categoria";
-      const category = categoryFromGroup(group);
-
       currentInfo = {
-        title,
-        group,
-        category,
+        title: nameMatch ? nameMatch[1].trim() : "Conteúdo sem título",
+        group: attributes["group-title"] || "Sem categoria",
+        category: categoryFromGroup(attributes["group-title"] || ""),
         logo: attributes["tvg-logo"] || "",
         streamUrl: ""
       };
@@ -104,6 +107,31 @@ function parseM3U(content) {
   }
 
   return parsed;
+}
+
+function ensurePlaylistContent(content) {
+  const normalized = content.trim();
+  if (!normalized) throw new Error("playlist vazia");
+
+  if (/invalid|expired|unauthorized|forbidden|blocked/i.test(normalized)) {
+    throw new Error("credenciais inválidas ou acesso bloqueado pelo provedor");
+  }
+
+  if (!normalized.includes("#EXTINF")) {
+    throw new Error("resposta recebida não parece uma playlist M3U válida");
+  }
+}
+
+async function downloadPlaylist(playlistUrl) {
+  try {
+    const directResponse = await fetch(playlistUrl, { method: "GET", mode: "cors" });
+    if (!directResponse.ok) throw new Error(`HTTP ${directResponse.status}`);
+    return await directResponse.text();
+  } catch (directError) {
+    const proxiedResponse = await fetch(`${CORS_PROXY}${encodeURIComponent(playlistUrl)}`);
+    if (!proxiedResponse.ok) throw new Error(`Falha no proxy CORS (${proxiedResponse.status})`);
+    return await proxiedResponse.text();
+  }
 }
 
 function resetRenderedState() {
@@ -122,14 +150,7 @@ function createItemCard(item) {
     ? `<img src="${item.logo}" alt="${item.title}" loading="lazy">`
     : `<div class="logo-fallback">▶</div>`;
 
-  element.innerHTML = `
-    <div class="thumb">${logoMarkup}</div>
-    <div class="meta">
-      <span class="title">${item.title}</span>
-      <small class="group">${item.group}</small>
-    </div>
-  `;
-
+  element.innerHTML = `<div class="thumb">${logoMarkup}</div><div class="meta"><span class="title">${item.title}</span><small class="group">${item.group}</small></div>`;
   element.addEventListener("click", () => {
     playChannel(item.streamUrl);
     currentSelectedIndex = renderedElements.indexOf(element);
@@ -139,11 +160,17 @@ function createItemCard(item) {
   return element;
 }
 
+function labelForCategory(category) {
+  if (category === "movies") return "Filmes";
+  if (category === "series") return "Séries";
+  return "Canais";
+}
+
 function renderNextBatch() {
   const list = playlistByCategory[activeCategory];
   const nextItems = list.slice(renderedCount, renderedCount + BATCH_SIZE);
-
   const fragment = document.createDocumentFragment();
+
   nextItems.forEach((item) => {
     const card = createItemCard(item);
     fragment.appendChild(card);
@@ -152,16 +179,13 @@ function renderNextBatch() {
 
   channelsContainer.appendChild(fragment);
   renderedCount += nextItems.length;
-
   loadMoreBtn.hidden = renderedCount >= list.length;
   listMeta.textContent = `${labelForCategory(activeCategory)}: ${list.length} itens`;
 }
 
 function renderCategory(category) {
   activeCategory = category;
-  filterButtons.forEach((button) => {
-    button.classList.toggle("active", button.dataset.category === category);
-  });
+  filterButtons.forEach((button) => button.classList.toggle("active", button.dataset.category === category));
 
   resetRenderedState();
   if (playlistByCategory[category].length === 0) {
@@ -173,12 +197,6 @@ function renderCategory(category) {
   renderNextBatch();
 }
 
-function labelForCategory(category) {
-  if (category === "movies") return "Filmes";
-  if (category === "series") return "Séries";
-  return "Canais";
-}
-
 function applyParsedPlaylist(parsed) {
   playlistByCategory.channels = parsed.channels;
   playlistByCategory.movies = parsed.movies;
@@ -187,23 +205,16 @@ function applyParsedPlaylist(parsed) {
   const total = parsed.channels.length + parsed.movies.length + parsed.series.length;
   setStatus(`Playlist carregada com sucesso. ${total} itens encontrados.`);
 
-  const preferredStart = parsed.channels.length > 0
-    ? "channels"
-    : (parsed.movies.length > 0 ? "movies" : "series");
-
+  const preferredStart = parsed.channels.length > 0 ? "channels" : (parsed.movies.length > 0 ? "movies" : "series");
   renderCategory(preferredStart);
 }
 
-async function fetchPlaylist(username, password) {
-  const playlistUrl = buildPlaylistUrl(username, password);
+async function fetchPlaylist(serverUrl, username, password) {
+  const playlistUrl = buildPlaylistUrl(serverUrl, username, password);
   setStatus("Autenticando e baixando playlist...");
 
-  const response = await fetch(playlistUrl);
-  if (!response.ok) {
-    throw new Error(`Falha ao baixar playlist (${response.status})`);
-  }
-
-  const content = await response.text();
+  const content = await downloadPlaylist(playlistUrl);
+  ensurePlaylistContent(content);
   return parseM3U(content);
 }
 
@@ -215,38 +226,38 @@ function playChannel(streamUrl) {
     hls = null;
   }
 
-  if (Hls.isSupported()) {
+  if (Hls.isSupported() && /\.m3u8($|\?)/i.test(streamUrl)) {
     hls = new Hls({ enableWorker: true });
     hls.loadSource(streamUrl);
     hls.attachMedia(video);
-    hls.once(Hls.Events.MANIFEST_PARSED, () => {
-      video.play().finally(() => showSpinner(false));
-    });
-
+    hls.once(Hls.Events.MANIFEST_PARSED, () => video.play().finally(() => showSpinner(false)));
     hls.on(Hls.Events.ERROR, () => showSpinner(false));
-  } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-    video.src = streamUrl;
-    video.play().finally(() => showSpinner(false));
-  } else {
-    setStatus("Seu navegador não suporta reprodução HLS.", true);
-    showSpinner(false);
+    return;
   }
+
+  video.src = streamUrl;
+  video.play().finally(() => showSpinner(false));
 }
 
 function updateSelection() {
   renderedElements.forEach((card, index) => {
     card.classList.toggle("selected", index === currentSelectedIndex);
-    if (index === currentSelectedIndex) {
-      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
+    if (index === currentSelectedIndex) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
   });
 }
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
+  const serverUrl = normalizeServerUrl(serverUrlInput.value);
   const username = usernameInput.value.trim();
   const password = passwordInput.value.trim();
+
+  if (!serverUrl) {
+    setStatus("Informe uma URL de servidor válida (ex.: https://ded50.com).", true);
+    return;
+  }
+
   if (!username || !password) {
     setStatus("Preencha usuário e senha para continuar.", true);
     return;
@@ -257,7 +268,7 @@ loginForm.addEventListener("submit", async (event) => {
   loadMoreBtn.hidden = true;
 
   try {
-    const parsed = await fetchPlaylist(username, password);
+    const parsed = await fetchPlaylist(serverUrl, username, password);
     applyParsedPlaylist(parsed);
   } catch (error) {
     setStatus(`Não foi possível carregar a playlist: ${error.message}`, true);
@@ -265,10 +276,7 @@ loginForm.addEventListener("submit", async (event) => {
   }
 });
 
-filterButtons.forEach((button) => {
-  button.addEventListener("click", () => renderCategory(button.dataset.category));
-});
-
+filterButtons.forEach((button) => button.addEventListener("click", () => renderCategory(button.dataset.category)));
 loadMoreBtn.addEventListener("click", renderNextBatch);
 
 document.addEventListener("keydown", (event) => {

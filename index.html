@@ -19,6 +19,10 @@
   <section class="auth-panel">
     <form id="loginForm" class="login-form" autocomplete="off">
       <label>
+        Servidor IPTV
+        <input type="url" id="serverUrl" required value="https://ded50.com" placeholder="https://seu-servidor.com">
+      </label>
+      <label>
         Usuário
         <input type="text" id="username" required placeholder="Digite seu usuário">
       </label>
@@ -28,7 +32,7 @@
       </label>
       <button type="submit">Entrar e baixar playlist</button>
     </form>
-    <p id="statusMessage" class="status-message">Informe usuário e senha para iniciar.</p>
+    <p id="statusMessage" class="status-message">Informe servidor, usuário e senha para iniciar.</p>
   </section>
 
   <main class="main-container">
