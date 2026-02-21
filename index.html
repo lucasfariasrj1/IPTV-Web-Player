@@ -1,64 +1,24 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <title>IPTV Web Player</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greek TV</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="styles.css">    
+    <script src="hls.min.js"></script>
 </head>
+
 <body>
-  <header class="topbar">
-    <img src="logo.png" alt="IPTV Logo">
-    <div>
-      <h1>IPTV Web Player</h1>
-      <p>Login obrigatório para carregar canais, filmes e séries</p>
+
+    <div id="videoContainer">
+        <video id="video" style="width: 100%; height: 100%;" controls></video>
+        <div id="channelsContainer"></div>
     </div>
-  </header>
 
-  <section class="auth-panel">
-    <form id="loginForm" class="login-form" autocomplete="off">
-      <label>
-        Servidor IPTV
-        <input type="url" id="serverUrl" required value="https://ded50.com" placeholder="https://seu-servidor.com">
-      </label>
-      <label>
-        Usuário
-        <input type="text" id="username" required placeholder="Digite seu usuário">
-      </label>
-      <label>
-        Senha
-        <input type="password" id="password" required placeholder="Digite sua senha">
-      </label>
-      <button type="submit">Entrar e baixar playlist</button>
-    </form>
-    <p id="statusMessage" class="status-message">Informe servidor, usuário e senha para iniciar.</p>
-  </section>
+    <script src="main.js"></script>
 
-  <main class="main-container">
-    <section class="player-container">
-      <div class="spinner-overlay" id="spinner">
-        <div class="spinner"></div>
-      </div>
-      <video id="videoPlayer" controls></video>
-    </section>
-
-    <aside class="playlist-panel">
-      <div class="filters">
-        <button class="filter-btn active" data-category="channels">Canais</button>
-        <button class="filter-btn" data-category="movies">Filmes</button>
-        <button class="filter-btn" data-category="series">Séries</button>
-      </div>
-      <div id="listMeta" class="list-meta">Nenhuma playlist carregada.</div>
-      <div id="channelsContainer" class="channels-container"></div>
-      <button id="loadMoreBtn" class="load-more" hidden>Carregar mais itens</button>
-    </aside>
-  </main>
-
-  <footer>
-    © 2026 IPTV Web Player
-  </footer>
-
-  <script src="core.js"></script>
 </body>
+
 </html>
