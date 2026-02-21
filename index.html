@@ -1,43 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>IPTV WEB Player</title>
+  <title>IPTV Web Player</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Include HLS.js via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-  <!-- Custom CSS -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <!-- Replace "logo.png" with your logo file name -->
+  <header class="topbar">
     <img src="logo.png" alt="IPTV Logo">
-    <h1>IPTV WEB Player</h1>
+    <div>
+      <h1>IPTV Web Player</h1>
+      <p>Login obrigatório para carregar canais, filmes e séries</p>
+    </div>
   </header>
-  <div class="file-input">
-    <p>Upload the .m3u or .m3u8 file of your IPTV channels:</p>
-    <input type="file" id="m3uFile" accept=".m3u, .m3u8">
-    <p>(You can interact with the player using mouse, touch, keyboard, gamepad, or remote control).</p>
-  </div>
-  <div class="main-container">
-    <!-- Player area -->
-    <div class="player-container">
+
+  <section class="auth-panel">
+    <form id="loginForm" class="login-form" autocomplete="off">
+      <label>
+        Usuário
+        <input type="text" id="username" required placeholder="Digite seu usuário">
+      </label>
+      <label>
+        Senha
+        <input type="password" id="password" required placeholder="Digite sua senha">
+      </label>
+      <button type="submit">Entrar e baixar playlist</button>
+    </form>
+    <p id="statusMessage" class="status-message">Informe usuário e senha para iniciar.</p>
+  </section>
+
+  <main class="main-container">
+    <section class="player-container">
       <div class="spinner-overlay" id="spinner">
         <div class="spinner"></div>
       </div>
       <video id="videoPlayer" controls></video>
-    </div>
-    <!-- Channel list -->
-    <aside class="channel-list" id="channelList">
-      <div id="channelsContainer">
-        <!-- Channels will be generated dynamically here -->
+    </section>
+
+    <aside class="playlist-panel">
+      <div class="filters">
+        <button class="filter-btn active" data-category="channels">Canais</button>
+        <button class="filter-btn" data-category="movies">Filmes</button>
+        <button class="filter-btn" data-category="series">Séries</button>
       </div>
+      <div id="listMeta" class="list-meta">Nenhuma playlist carregada.</div>
+      <div id="channelsContainer" class="channels-container"></div>
+      <button id="loadMoreBtn" class="load-more" hidden>Carregar mais itens</button>
     </aside>
-  </div>
+  </main>
+
   <footer>
-    © 2025 IPTV WEB Player | By Bocaletto Luca | GPLv3 | All Rights Reserved.
+    © 2026 IPTV Web Player
   </footer>
+
   <script src="core.js"></script>
 </body>
 </html>
